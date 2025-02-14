@@ -662,7 +662,7 @@ def write_solver_input(file_path, workload, log_weights):
 def collect_gurobi_results(workload, cvsram_size, gurobi_out_path, gurobi_in_path):
     # read results from the solver and draw the CVSRAM occupation figure
     occ_fig = plt.figure(figsize=(12.8, 9.6))
-    ax1 = occ_fig.add_subplot("111")
+    ax1 = occ_fig.add_subplot(111)
     plt.xlim(xmin=0, xmax=len(workload.raw_addr_log))
     plt.ylim(ymin=0, ymax=cvsram_size)
 

@@ -81,7 +81,7 @@ library_vcd: sconscript_edit $(foreach file_name,$(VERILATOR_LIBS) $(INTERFACES)
 	ar rvs libVerilatorNVDLA.a $(foreach file_name,$(VERILATOR_LIBS) $(INTERFACES),$(file_name).o)
 
 VNV_nvdla: $(foreach file_name,$(INTERFACES),$(file_name).o)
-	$(CXX) nvdla.cpp $(foreach file_name,$(INTERFACES),$(file_name).o) $(PARAMS) \
+	$(CXX) nvdla.cpp $(foreach file_name,$(INTERFACES),$(file_name).o) $(PARAMS) $(VERILATOR_ROOT)/include/verilated.cpp \
 	-I$(VERILATOR_ROOT)/include/vltstd -L $(DIR) -l VNV_nvdla__ALL -o VNV_nvdla
 
 .PHONY: clean
