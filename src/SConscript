@@ -1442,6 +1442,7 @@ elif env['CLANG']:
     # opt, fast, prof and perf all share the same cc flags
     for target in ['opt', 'fast', 'prof', 'perf']:
         ccflags[target] += ['-O3']
+    ccflags['fast'] += ['-Ofast']
 else:
     error('Unknown compiler, please fix compiler options')
 

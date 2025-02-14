@@ -48,10 +48,6 @@
 #include "wrapper_nvdla.hh"
 #include <iostream>
 
-double sc_time_stamp() {
-  return double_t(0);
-}
-
 embeddedBuffer* Wrapper_nvdla::shared_spm = nullptr;
 uint64_t* Wrapper_nvdla::print_buffer = nullptr;
 uint32_t Wrapper_nvdla::buf_ptr = 0;
