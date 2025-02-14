@@ -93,6 +93,26 @@ class FreqRatioParam(BaseParam):
     def default_value(cls):
         return [1]
 
+class MemSizeParam(BaseParam):
+    def __init__(self, name, sweep_vals):
+        BaseParam.__init__(self, name, sweep_vals)
+
+    def apply(self, point_dir):
+        change_config_file(
+            point_dir, "run.sh", {"mem-size": self.curr_sweep_value()})
+
+    @classmethod
+    def get(cls, point_dir, run_sh_lines):
+        for line in run_sh_lines:
+            pos = line.find("--mem-size")
+            if pos == -1:
+                continue
+            return re.search(r"--mem-size\s+([0-9a-zA-Z]+)", line).group(1)
+
+    @classmethod
+    def default_value(cls):
+        return ["2GB"]
+
 
 class DDRTypeParam(BaseParam):
     def __init__(self, name, sweep_vals):
@@ -114,6 +134,25 @@ class DDRTypeParam(BaseParam):
     def default_value(cls):
         return ["DDR3_1600_8x8"]
 
+class DDRChannelsParam(BaseParam):
+    def __init__(self, name, sweep_vals):
+        BaseParam.__init__(self, name, sweep_vals)
+
+    def apply(self, point_dir):
+        change_config_file(
+            point_dir, "run.sh", {"ddr-channels": self.curr_sweep_value()})
+
+    @classmethod
+    def get(cls, point_dir, run_sh_lines):
+        for line in run_sh_lines:
+            pos = line.find("--ddr-channels")
+            if pos == -1:
+                continue
+            return re.search(r"--ddr-channels\s+([0-9]+)", line).group(1)
+
+    @classmethod
+    def default_value(cls):
+        return [1]
 
 class NumNVDLAParam(BaseParam):
     def __init__(self, name, sweep_vals):

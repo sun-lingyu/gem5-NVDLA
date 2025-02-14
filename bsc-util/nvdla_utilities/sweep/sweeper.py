@@ -16,7 +16,9 @@ from params import *
 param_types = {
     "little-cpu-clock": LittleCPUClockParam,
     "freq-ratio": FreqRatioParam,
+    "mem-size": MemSizeParam,
     "ddr-type": DDRTypeParam,
+    "ddr-channels": DDRChannelsParam,
     "numNVDLA": NumNVDLAParam,
     "buffer-mode": BufferModeParam,
     "dma-enable": DMAEnableParam,
@@ -331,6 +333,8 @@ class Sweeper:
                 bin_path = "build/ARM/gem5.opt" if args.gem5_binary.endswith("opt") else "build/ARM/gem5.fast"
                 lg = os.popen("cd " + self.gem5_nvdla_dir + " && " + bin_path + " configs/example/arm/fs_bigLITTLE_RTL.py"
                               " --big-cpus 0 --little-cpus 1 --cpu-type atomic"
+                              " --mem-size 4GB --ddr-channels 4 --ddr-type LPDDR5_6400_1x16_BG_BL16"
+                              " --accelerators --cvsram-enable --cvsram-size 3MB --cvsram-bandwidth 64GB/s"
                               " --bootscript=configs/boot/hack_back_ckpt.rcS").readlines()
                 # get the exact directory of the checkpoint just generated
                 tick_match = re.search("at tick ([0-9]+)", lg[-4])

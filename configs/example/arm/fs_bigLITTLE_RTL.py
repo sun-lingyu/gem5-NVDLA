@@ -50,6 +50,7 @@ from common import SysPaths
 from common import ObjectList
 from common import Options
 from common.cores.arm import ex5_LITTLE
+from common import MemConfig
 
 import devices
 from devices import AtomicCluster, KvmCluster, FastmodelCluster
@@ -110,7 +111,7 @@ class Ex5LittleCluster(devices.CpuCluster):
         super(Ex5LittleCluster, self).__init__(system, num_cpus, cpu_clock,
                                          cpu_voltage, *cpu_config)
 
-def createSystem(caches, kernel, accelerators, ddr_type, bootscript,
+def createSystem(caches, kernel, accelerators, ddr_type, ddr_channels, bootscript,
                  machine_type="VExpress_GEM5", disks=[], cvsram_enable=False, cvsram_size="1MB",
                  mem_size=default_mem_size, bootloader=None):
     platform = ObjectList.platform_list.get(machine_type)
@@ -122,8 +123,13 @@ def createSystem(caches, kernel, accelerators, ddr_type, bootscript,
                                readfile=bootscript)
 
     # sys.mem_ctrls = [ SimpleMemory(range=r, port=sys.membus.mem_side_ports) for r in sys.mem_ranges ]
-    src_mem_ranges = sys.mem_ranges[:-4] if cvsram_enable else sys.mem_ranges
-    sys.mem_ctrls = [MemCtrl(dram=eval(ddr_type + "(range=r)"), port=sys.membus.mem_side_ports) for r in src_mem_ranges]
+    mem_ranges_backup = sys.mem_ranges[-4:] if cvsram_enable else []
+    sys.mem_ranges = sys.mem_ranges[:-4] if cvsram_enable else sys.mem_ranges
+    # sys.mem_ctrls = [MemCtrl(dram=eval(ddr_type + "(range=r)"), port=sys.membus.mem_side_ports) for r in src_mem_ranges]
+
+    mem_args = argparse.Namespace(mem_type=ddr_type, mem_channels=ddr_channels)
+    MemConfig.config_mem(mem_args, sys)
+    sys.mem_ranges += mem_ranges_backup
 
     sys.connect()
 
@@ -221,6 +227,7 @@ def addOptions(parser):
     # options.ddr_type
     parser.add_argument("--ddr-type", type=str, default="DDR3_1600_8x8", help="specify system dram type")
     # available: DDR4_2400_8x8
+    parser.add_argument("--ddr-channels", type=int, default=1, help="specify system dram channel number")
 
     # options.numNVDLA
     parser.add_argument("--numNVDLA", type=int, default=1, help="number of NVDLAs")
@@ -349,6 +356,7 @@ def build(options):
                           options.kernel,
                           options.accelerators,
                           options.ddr_type,
+                          options.ddr_channels,
                           options.bootscript,
                           options.machine_type,
                           disks=disks,

@@ -8,7 +8,9 @@
 --maxReqNVDLA 1000 --enableTimingAXI \
 --restore-from %(cpt-dir)s \
 --bootscript=bootscript.rcS \
+--mem-size %(mem-size)s \
 --ddr-type %(ddr-type)s \
+--ddr-channels %(ddr-channels)s \
 --buffer-mode %(buffer-mode)s \
 %(dma-enable)s \
 %(shared-spm)s \
