@@ -205,7 +205,7 @@ class CpuCluster(SubSystem):
 
             if options.cvsram_enable:
                 for i in range(4):
-                    exec("self.accel_%d_cvsram = SimpleMemory(latency='2ns', latency_var='0ns', bandwidth='" % i +
+                    exec("self.accel_%d_cvsram = SimpleMemory(latency='128ns', latency_var='0ns', bandwidth='" % i +
                          options.cvsram_bandwidth + "', port=cpu.accel_%d.sram_port, range=system.mem_ranges[i-4])" % i)
             if options.add_accel_private_cache:
                 for i in range(options.numNVDLA):
