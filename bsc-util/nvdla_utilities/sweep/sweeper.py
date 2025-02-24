@@ -331,11 +331,50 @@ class Sweeper:
             with LockFile(os.path.join(self.gem5_nvdla_dir, "m5out/checkpointing_lock")):
                 print("Generating checkpoint...")
                 bin_path = "build/ARM/gem5.opt" if args.gem5_binary.endswith("opt") else "build/ARM/gem5.fast"
-                lg = os.popen("cd " + self.gem5_nvdla_dir + " && " + bin_path + " configs/example/arm/fs_bigLITTLE_RTL.py"
-                              " --big-cpus 0 --little-cpus 1 --cpu-type atomic"
-                              " --mem-size 4GB --ddr-channels 4 --ddr-type LPDDR5_6400_1x16_BG_BL16"
-                              " --accelerators --cvsram-enable --cvsram-size 3MB --cvsram-bandwidth 64GB/s"
-                              " --bootscript=configs/boot/hack_back_ckpt.rcS").readlines()
+
+                cvsram_enable = False
+                cvsram_size = None
+                cvsram_bandwidth = None
+                ddr_channels = None
+                mem_size = None
+                ddr_type = None
+                for p in self.params_list[0][0]:
+                    if isinstance(p, CVSRAMEnableParam) and p.curr_sweep_value():
+                        cvsram_enable = True
+                    elif isinstance(p, CVSRAMSizeParam) and p.curr_sweep_value():
+                        cvsram_size = p.curr_sweep_value()
+                    elif isinstance(p, CVSRAMBandwidthParam) and p.curr_sweep_value():
+                        cvsram_bandwidth = p.curr_sweep_value()
+                    elif isinstance(p, DDRChannelsParam) and p.curr_sweep_value():
+                        ddr_channels = p.curr_sweep_value()
+                    elif isinstance(p, MemSizeParam) and p.curr_sweep_value():
+                        mem_size = p.curr_sweep_value()
+                    elif isinstance(p, DDRTypeParam) and p.curr_sweep_value():
+                        ddr_type = p.curr_sweep_value()
+                assert(ddr_channels and mem_size and ddr_type)
+
+                if cvsram_enable:
+                    assert(cvsram_size and cvsram_bandwidth)
+                    print(f" configs/example/arm/fs_bigLITTLE_RTL.py \
+                                --big-cpus 0 --little-cpus 1 --cpu-type atomic \
+                                --mem-size {mem_size} --ddr-channels {ddr_channels} --ddr-type {ddr_type} \
+                                --accelerators --cvsram-enable --cvsram-size {cvsram_size} --cvsram-bandwidth {cvsram_bandwidth} \
+                                --bootscript=configs/boot/hack_back_ckpt.rcS")
+                    lg = os.popen("cd " + self.gem5_nvdla_dir + " && " + bin_path + f" configs/example/arm/fs_bigLITTLE_RTL.py \
+                                --big-cpus 0 --little-cpus 1 --cpu-type atomic \
+                                --mem-size {mem_size} --ddr-channels {ddr_channels} --ddr-type {ddr_type} \
+                                --accelerators --cvsram-enable --cvsram-size {cvsram_size} --cvsram-bandwidth {cvsram_bandwidth} \
+                                --bootscript=configs/boot/hack_back_ckpt.rcS").readlines()           
+                else:
+                    print(f" configs/example/arm/fs_bigLITTLE_RTL.py \
+                                --big-cpus 0 --little-cpus 1 --cpu-type atomic \
+                                --mem-size {mem_size} --ddr-channels {ddr_channels} --ddr-type {ddr_type} \
+                                --bootscript=configs/boot/hack_back_ckpt.rcS")
+                    lg = os.popen("cd " + self.gem5_nvdla_dir + " && " + bin_path + f" configs/example/arm/fs_bigLITTLE_RTL.py \
+                                --big-cpus 0 --little-cpus 1 --cpu-type atomic \
+                                --mem-size {mem_size} --ddr-channels {ddr_channels} --ddr-type {ddr_type} \
+                                --bootscript=configs/boot/hack_back_ckpt.rcS").readlines()
+
                 # get the exact directory of the checkpoint just generated
                 tick_match = re.search("at tick ([0-9]+)", lg[-4])
                 assert tick_match is not None
