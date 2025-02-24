@@ -131,6 +131,9 @@ def createSystem(caches, kernel, accelerators, ddr_type, ddr_channels, bootscrip
     MemConfig.config_mem(mem_args, sys)
     sys.mem_ranges += mem_ranges_backup
 
+    for ctrl in sys.mem_ctrls:
+        ctrl.static_frontend_latency = m5.params.Latency("330ns")
+
     sys.connect()
 
     # Attach disk images
