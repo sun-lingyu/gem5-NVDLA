@@ -106,6 +106,10 @@ public:
         //! determine alignment
         uint64_t log_divider = 0xffffffffffffffff;
 
+        if (tensors.empty()){
+            log_divider = 1;
+        }
+
         // sweep through all the atomic tensors
         for (auto& tensor: tensors) {
             uint64_t this_log_divider = 1;

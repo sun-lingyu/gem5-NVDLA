@@ -340,7 +340,7 @@ rtlNVDLA::tick() {
     // schedule new iteration
     if (!wr->csb->done() || (quiesc_timer-- > 0) || waiting_for_gem5_mem || flushing_spm) {
         // Update stats
-        // stats.nvdla_avgReqCVSRAM.sample(wr->axi_cvsram->getRequestsOnFlight());
+        stats.nvdla_avgReqCVSRAM.sample(wr->axi_cvsram->getRequestsOnFlight());
         stats.nvdla_avgReqDBBIF.sample(wr->axi_dbb->getRequestsOnFlight());
         stats.nvdla_cycles++;
         cyclesNVDLA++;
