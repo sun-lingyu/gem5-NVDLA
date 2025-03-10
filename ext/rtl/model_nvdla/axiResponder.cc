@@ -414,6 +414,17 @@ AXIResponder::eval_timing() {
         axi_b_txn &txn = b_fifo.front();
         *dla.b_bid = txn.bid;
         b_fifo.pop();
+
+        #ifndef AXI_RESP_FAST_IO
+            printf("(%lu) nvdla#%d %s: write response from dla, id %d\n",
+                wrapper->tickcount,
+                wrapper->id_nvdla,
+                name,
+                *dla.b_bid);
+        #else
+            PRINT_WR_REP(wrapper->print_buffer, wrapper->buf_ptr, wrapper->id_nvdla,
+                *dla.b_bid, name[0], wrapper->tickcount);
+        #endif
     }
 }
 

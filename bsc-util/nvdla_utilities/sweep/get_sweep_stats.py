@@ -106,11 +106,13 @@ class PerformanceCollector:
                 name = (int64_1 >> 48) & 0xff
                 burst = (int64_1 >> 60) & 0xf
                 if name == ord('D'):
+                    print(f"read req D: 0x{int64_0:08x}, {time}, {burst}")
                     to_append = (time, self.dbb_inflight[nvdla][-1][-1] + burst + 1)
                     if self.dbb_inflight[nvdla][-1][0] == time:
                         self.dbb_inflight[nvdla].pop(-1)
                     self.dbb_inflight[nvdla].append(to_append)
                 elif name == ord('C'):
+                    print(f"read req C: 0x{int64_0:08x}, {time}, {burst}")
                     to_append = (time, self.cvsram_inflight[nvdla][-1][-1] + burst + 1)
                     if self.cvsram_inflight[nvdla][-1][0] == time:
                         self.cvsram_inflight[nvdla].pop(-1)
@@ -122,17 +124,38 @@ class PerformanceCollector:
                 nvdla = (int64_1 >> 40) & 0xff
                 name = (int64_1 >> 48) & 0xff
                 if name == ord('D'):
+                    print(f"read resp D: 0x{int64_0:08x}, {time}")
                     to_append = (time, self.dbb_inflight[nvdla][-1][-1] - 1)
                     if self.dbb_inflight[nvdla][-1][0] == time:
                         self.dbb_inflight[nvdla].pop(-1)
                     self.dbb_inflight[nvdla].append(to_append)
                 elif name == ord('C'):
+                    print(f"read resp C: 0x{int64_0:08x}, {time}")
                     to_append = (time, self.cvsram_inflight[nvdla][-1][-1] - 1)
                     if self.cvsram_inflight[nvdla][-1][0] == time:
                         self.cvsram_inflight[nvdla].pop(-1)
                     self.cvsram_inflight[nvdla].append(to_append)
                 else:
                     assert False
+            elif print_cmd == 0x1:      # read data used by nvdla
+                time = int64_1 & 0xffffffff
+                nvdla = (int64_1 >> 40) & 0xff
+                name = (int64_1 >> 48) & 0xff
+                if name == ord('D'):
+                    print(f"write req D: 0x{int64_0:08x}, {time}")
+                    pass
+                elif name == ord('C'):
+                    print(f"write req C: 0x{int64_0:08x}, {time}")
+            elif print_cmd == 0xa:      # read data used by nvdla
+                time = int64_1 & 0xffffffff
+                nvdla = (int64_1 >> 40) & 0xff
+                name = (int64_1 >> 48) & 0xff
+                stream = (int64_1 >> 32) & 0xff
+                if name == ord('D'):
+                    print(f"write resp D: 0x{stream:08x}, {time}")
+                    pass
+                elif name == ord('C'):
+                    print(f"write resp C: 0x{stream:08x}, {time}")
 
     def get_num_dma_prefetch(self):
         return self.num_dma_prefetch
@@ -233,6 +256,13 @@ class PerformanceCollector:
                      self.cvsram_inflight[nvdla][i + 1][0] - self.cvsram_inflight[nvdla][i][0] > 10):
                     zero_cvsram_intervals.append((self.cvsram_inflight[nvdla][i][0], self.cvsram_inflight[nvdla][i + 1][0]))
 
+            print("zero_dbb_intervals is ")
+            for zero_dbb_interval in zero_dbb_intervals:
+                print(zero_dbb_interval)
+
+            print("zero_cvsram_intervals is ")
+            for zero_cvsram_interval in zero_cvsram_intervals:
+                print(zero_cvsram_interval)
             # get intersect
             last_cvsram_int_id = 0
             zero_time = 0
@@ -256,7 +286,7 @@ class PerformanceCollector:
                             zero_time += (min_right - max_left)
                             try_cvsram_id += 1
                         break
-
+            print(begin_time, end_time, zero_time)
             item_vals_of_nvdlas[nvdla] = str(end_time - begin_time - zero_time)
         return item_vals_of_nvdlas
 

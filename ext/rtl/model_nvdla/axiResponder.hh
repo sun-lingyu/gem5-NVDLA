@@ -28,6 +28,7 @@
 #define PRINT_DMA_BACK(str, pos, dla, tick, addr) PRINT_16B(str, pos, addr, tick, 0, dla, 0, 7, 0)
 #define PRINT_DMA_PFT_ISSUE(str, pos, dla, tick, addr) PRINT_16B(str, pos, addr, tick, 0, dla, 0, 8, 0)
 #define PRINT_PFT_ISSUE(str, pos, dla, tick, addr) PRINT_16B(str, pos, addr, tick, 0, dla, 0, 9, 0)
+#define PRINT_WR_REP(str, pos, dla, stream, name, tick) PRINT_16B(str, pos, 0, tick, stream, dla, name, 10, 0)
 #endif
 
 
