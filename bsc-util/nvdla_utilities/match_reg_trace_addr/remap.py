@@ -67,7 +67,7 @@ class IdentityRemapper(BaseRemapper):
         assert os.path.abspath(out_dir) == os.path.abspath(self.in_dir)
         BaseRemapper.testcase_init(self, out_dir, sim_dir, testcase_str)
 
-    def compute_remap_decision(self):
+    def compute_remap_decision(self, remap_input=False, remap_output=False):
         pass
 
     def write_to_files(self):
@@ -263,9 +263,30 @@ class ActPinRemapper(SingleAccelCVSRAMRemapper):
         """ workload-related info """
         self.last_tick = len(self.workload.raw_addr_log) - 1
 
-    def compute_remap_decision(self):
+    def compute_remap_decision(self, remap_input=False, remap_output=False):
         itm_acts_file = os.path.join(self.in_dir, "intermediate_acts")
-        write_solver_input(itm_acts_file, self.workload, log_weights=False)
+
+        print("\nself.workload.in_tb: ")
+        for tensor in self.workload.in_tb:
+            buffer = self.workload.tb[tensor]
+            print(tensor, " " + str(buffer.liveness) + " " + str(buffer.size) + " " + hex(buffer.addr))
+
+        print("\nself.workload.w_tb: ")
+        for tensor in self.workload.w_tb:
+            buffer = self.workload.tb[tensor]
+            print(tensor, " " + str(buffer.liveness) + " " + str(buffer.size) + " " + hex(buffer.addr))
+
+        print("\nself.workload.itm_act_tb: ")
+        for tensor in self.workload.itm_act_tb:
+            buffer = self.workload.tb[tensor]
+            print(tensor, " " + str(buffer.liveness) + " " + str(buffer.size) + " " + hex(buffer.addr))
+        
+        print("\nself.workload.out_tb: ")
+        for tensor in self.workload.out_tb:
+            buffer = self.workload.tb[tensor]
+            print(tensor, " " + str(buffer.liveness) + " " + str(buffer.size) + " " + hex(buffer.addr))
+
+        write_solver_input(itm_acts_file, self.workload, log_weights=False, remap_input=remap_input, remap_output=remap_output)
 
         # call the gurobi solver
         gurobi_out_path = os.path.join(self.out_dir, self.testcase_str + "_alloc_result")
@@ -639,9 +660,14 @@ class PipelineActPinRemapper(CVSRAMRemapper, PipelineRemapper):
         PipelineRemapper.write_to_files(self)
 
 
-def write_solver_input(file_path, workload, log_weights):
+def write_solver_input(file_path, workload, log_weights, remap_input=False, remap_output=False):
+    tensors_remapped = workload.itm_act_tb
+    if remap_input:
+        tensors_remapped += workload.in_tb
+    if remap_output:
+        tensors_remapped += workload.out_tb
     with open(file_path, "w") as fp:
-        for act in workload.itm_act_tb:
+        for act in tensors_remapped:
             buffer = workload.tb[act]
             fp.write(str(buffer.liveness[0]) + " " + str(buffer.liveness[1]) + " " + str(buffer.size) + " " +
                      str(buffer.num_access) + " " + hex(buffer.addr) + " ")
@@ -674,26 +700,28 @@ def collect_gurobi_results(workload, cvsram_size, gurobi_out_path, gurobi_in_pat
     with open(gurobi_out_path) as fp:
         out_lines = fp.readlines()
 
-    relative_mapping = {}   # {data_desc(inside a pipeline stage): mapping position in a CVSRAM}
-    for line_id, line in enumerate(out_lines):
-        words = line.split()
-        attrs = in_lines[line_id].strip().split()
-        is_w = attrs[5] == "1"      # weights will only be used once
-        if words[0] == '1':
-            tb_name = workload.tb[workload.w_tb[collect_w_cnt]].tb_name if is_w else workload.itm_act_tb[collect_a_cnt]
-            buffer = workload.tb[tb_name]
-            relative_mapping[tb_name] = int(words[1])
+    with open(gurobi_out_path+"_tmp", "wt") as fp:
+        relative_mapping = {}   # {data_desc(inside a pipeline stage): mapping position in a CVSRAM}
+        for line_id, line in enumerate(out_lines):
+            words = line.split()
+            attrs = in_lines[line_id].strip().split()
+            is_w = attrs[5] == "1"      # weights will only be used once
+            if words[0] == '1':
+                tb_name = workload.tb[workload.w_tb[collect_w_cnt]].tb_name if is_w else workload.itm_act_tb[collect_a_cnt]
+                buffer = workload.tb[tb_name]
+                relative_mapping[tb_name] = int(words[1])
+                if is_w:
+                    ax1.add_patch(patches.Rectangle((0, int(words[1])), len(workload.raw_addr_log) - 1, buffer.size,
+                                                    linewidth=1, edgecolor='black'))
+                else:
+                    ax1.add_patch(patches.Rectangle((buffer.liveness[0], int(words[1])),
+                                                    buffer.liveness[1] - buffer.liveness[0], buffer.size,
+                                                    linewidth=1, edgecolor='black'))
+                    fp.write(f"activation addr {int(words[1])}, size {buffer.size}\n")
             if is_w:
-                ax1.add_patch(patches.Rectangle((0, int(words[1])), len(workload.raw_addr_log) - 1, buffer.size,
-                                                linewidth=1, edgecolor='black'))
+                collect_w_cnt += 1
             else:
-                ax1.add_patch(patches.Rectangle((buffer.liveness[0], int(words[1])),
-                                                buffer.liveness[1] - buffer.liveness[0], buffer.size,
-                                                linewidth=1, edgecolor='black'))
-        if is_w:
-            collect_w_cnt += 1
-        else:
-            collect_a_cnt += 1
+                collect_a_cnt += 1
 
     ylabels = map(lambda t: '0x%x' % int(t), ax1.get_yticks())
     ax1.set_yticklabels(ylabels)

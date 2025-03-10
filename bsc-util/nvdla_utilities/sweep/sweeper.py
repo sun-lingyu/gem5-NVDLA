@@ -111,6 +111,9 @@ class Sweeper:
         self.mappers = {}
         self.mapper_comps = []  # [(mapper_path, [shell_cmd])]: each is a testcase that requires remapping computation
 
+        self.remap_input = args.remap_input
+        self.remap_output = args.remap_output
+
         for root, dirs, files in os.walk(args.jsons_dir):
             is_valid_dir = False
             for file in files:
@@ -214,7 +217,7 @@ class Sweeper:
             if eval("issubclass(" + mapper_pfx + "Remapper, PipelineRemapper)"):
                 mapper.set_pipeline_params(self.num_batches)
 
-            exe_cmds = mapper.compute_remap_decision()
+            exe_cmds = mapper.compute_remap_decision(self.remap_input, self.remap_output)
             dump_mapper_path = os.path.abspath(os.path.join(mapper.out_dir, trace_id + "_mapper"))
             self.mapper_comps.append((dump_mapper_path, exe_cmds if exe_cmds is not None and exe_cmds != [] else []))
             with open(dump_mapper_path, 'wb') as mapper_file:

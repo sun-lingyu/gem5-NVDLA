@@ -68,6 +68,13 @@ def main():
     parser.add_argument(
         '--sh-stats', nargs='+', type=str,
         help="shared (among NVDLAs) stat metrics of concern")
+    parser.add_argument(
+        '--remap-input', action="store_true", default=False,
+        help="remap input tensors to CVSRAM")
+    parser.add_argument(
+        '--remap-output', action="store_true", default=False,
+        help="remap output tensors to CVSRAM")
+    
 
     args = parser.parse_args()
 

@@ -265,7 +265,7 @@ class Workload:
                 fp.writelines(self.txn_lines)
         else:
             """do liveness analysis for each intermediate activation TensorBuffer object"""
-            for tb_name in self.itm_act_tb:
+            for tb_name in self.itm_act_tb + self.in_tb + self.out_tb:
                 tb = self.tb[tb_name]
                 first = self.get_to_query_addr(tb)
                 last = last_aligned(tb.addr, tb.size, self.axi_width)
