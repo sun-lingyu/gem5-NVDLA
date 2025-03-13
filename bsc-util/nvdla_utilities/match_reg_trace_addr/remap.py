@@ -67,7 +67,7 @@ class IdentityRemapper(BaseRemapper):
         assert os.path.abspath(out_dir) == os.path.abspath(self.in_dir)
         BaseRemapper.testcase_init(self, out_dir, sim_dir, testcase_str)
 
-    def compute_remap_decision(self, remap_input=False, remap_output=False):
+    def compute_remap_decision(self, remap_input=[], remap_output=[]):
         pass
 
     def write_to_files(self):
@@ -263,7 +263,7 @@ class ActPinRemapper(SingleAccelCVSRAMRemapper):
         """ workload-related info """
         self.last_tick = len(self.workload.raw_addr_log) - 1
 
-    def compute_remap_decision(self, remap_input=False, remap_output=False):
+    def compute_remap_decision(self, remap_input=[], remap_output=[]):
         itm_acts_file = os.path.join(self.in_dir, "intermediate_acts")
 
         print("\nself.workload.in_tb: ")
@@ -660,12 +660,13 @@ class PipelineActPinRemapper(CVSRAMRemapper, PipelineRemapper):
         PipelineRemapper.write_to_files(self)
 
 
-def write_solver_input(file_path, workload, log_weights, remap_input=False, remap_output=False):
+def write_solver_input(file_path, workload, log_weights, remap_input=[], remap_output=[]):
     tensors_remapped = workload.itm_act_tb
-    if remap_input:
-        tensors_remapped += workload.in_tb
-    if remap_output:
-        tensors_remapped += workload.out_tb
+    for idx in remap_input:
+        tensors_remapped.append(workload.in_tb[idx])
+    for idx in remap_output:
+        tensors_remapped.append(workload.out_tb[idx])
+    print("tensors_remapped:", tensors_remapped)
     with open(file_path, "w") as fp:
         for act in tensors_remapped:
             buffer = workload.tb[act]

@@ -69,11 +69,11 @@ def main():
         '--sh-stats', nargs='+', type=str,
         help="shared (among NVDLAs) stat metrics of concern")
     parser.add_argument(
-        '--remap-input', action="store_true", default=False,
-        help="remap input tensors to CVSRAM")
+        '--remap-input', default="",
+        help="id of input tensors mapped to CVSRAM. e.g., 0,1,2,3")
     parser.add_argument(
-        '--remap-output', action="store_true", default=False,
-        help="remap output tensors to CVSRAM")
+        '--remap-output', default="",
+        help="id of output tensors mapped to CVSRAM. e.g., 0,1,2,3")
     
 
     args = parser.parse_args()

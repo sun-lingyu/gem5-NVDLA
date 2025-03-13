@@ -111,8 +111,8 @@ class Sweeper:
         self.mappers = {}
         self.mapper_comps = []  # [(mapper_path, [shell_cmd])]: each is a testcase that requires remapping computation
 
-        self.remap_input = args.remap_input
-        self.remap_output = args.remap_output
+        self.remap_input = [int(x) for x in args.remap_input.split(",") if x != ""]
+        self.remap_output = [int(x) for x in args.remap_output.split(",") if x != ""]
 
         for root, dirs, files in os.walk(args.jsons_dir):
             is_valid_dir = False
