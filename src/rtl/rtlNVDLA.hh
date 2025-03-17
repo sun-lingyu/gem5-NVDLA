@@ -35,6 +35,7 @@
 #include <vector>
 #include <utility>
 #include <ctime>
+#include <atomic>
 
 #include "dev/dma_device.hh"
 #include "dev/dma_nvdla.hh"
@@ -97,6 +98,8 @@ class rtlNVDLA : public rtlObject
         bool sram;
         // if we are blocked due to a req retry
         bool blockedRetry;
+
+        uint64_t pending_writes{0};
 
         /**
          * Send a packet across this port. This is called by the owner and

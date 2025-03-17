@@ -338,10 +338,10 @@ rtlNVDLA::tick() {
     // if we are still running trace
     // runIteration
     // schedule new iteration
-    if (!wr->csb->done() || (quiesc_timer-- > 0) || waiting_for_gem5_mem || flushing_spm) {
+    if (!wr->csb->done() || (quiesc_timer-- > 0) || waiting_for_gem5_mem || flushing_spm || sramPort.pending_writes != 0 || dramPort.pending_writes != 0) {
         // Update stats
-        stats.nvdla_avgReqCVSRAM.sample(wr->axi_cvsram->getRequestsOnFlight());
-        stats.nvdla_avgReqDBBIF.sample(wr->axi_dbb->getRequestsOnFlight());
+        stats.nvdla_avgReqCVSRAM.sample(wr->axi_cvsram->getRequestsOnFlight()); // cvsram read requests on flight
+        stats.nvdla_avgReqDBBIF.sample(wr->axi_dbb->getRequestsOnFlight()); // dram read requests on flight
         stats.nvdla_cycles++;
         cyclesNVDLA++;
         runIterationNVDLA();
@@ -510,6 +510,9 @@ rtlNVDLA::MemNVDLAPort::sendPacket(PacketPtr pkt, bool timing) {
             pkt->getAddr(), pkt->getSize(), pending_req.size());
         // we add as a pending request, we deal later
         pending_req.push(pkt);
+        if (pkt->isWrite()){
+            pending_writes++;
+        }
     } else {
         DPRINTF(rtlNVDLA, "Send Mem Req to DRAM %#x size: %d functional\n",
             pkt->getAddr(), pkt->getSize());
@@ -530,6 +533,10 @@ rtlNVDLA::MemNVDLAPort::recvRangeChange() {
 bool
 rtlNVDLA::MemNVDLAPort::recvTimingResp(PacketPtr pkt) {
     DPRINTF(rtlNVDLA, "Got response SRAM?: %d\n", sram);
+    if (pkt->isWrite()){
+        pending_writes--;
+    }
+
     return owner->handleResponseNVDLA(pkt, sram);
 }
 
