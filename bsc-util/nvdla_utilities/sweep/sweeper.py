@@ -179,10 +179,7 @@ class Sweeper:
                         assert False
                     key_params["CVSRAMSize"] = size
         mapper_pfx = key_params["Remapper"]
-        if eval("issubclass(" + mapper_pfx + "Remapper, PipelineRemapper)") and mapper_pfx != "Pipeline":
-            new_sim_dir = os.path.join(self.sim_dir, trace_id)
-        else:
-            new_sim_dir = self.sim_dir
+        new_sim_dir = self.sim_dir
 
         # Only when this is a new trace id, do remapping
         # Some remapping process requires parallel computation. These tasks will be stored in self.remap_comps
@@ -194,12 +191,8 @@ class Sweeper:
             mapper = self.mappers[mapper_pfx]
             if mapper_pfx == "Identity":
                 remap_subdir = "."
-            elif mapper_pfx == "WeightPin" or mapper_pfx == "ActPin" or mapper_pfx == "MixPin":
+            elif mapper_pfx == "ActPin":
                 remap_subdir = "cvsram"
-            elif mapper_pfx == "Pipeline":
-                remap_subdir = "multibatch"
-            elif mapper_pfx == "PipelineWeightPin" or mapper_pfx == "PipelineActPin":
-                remap_subdir = "multibatch_cvsram"
             else:
                 assert False
 
@@ -208,14 +201,10 @@ class Sweeper:
             if eval("issubclass(" + mapper_pfx + "Remapper, CVSRAMRemapper)"):
                 if eval("issubclass(" + mapper_pfx + "Remapper, SingleAccelCVSRAMRemapper)"):
                     num_cvsram = 1
-                elif eval("issubclass(" + mapper_pfx + "Remapper, PipelineRemapper)") and mapper_pfx != "Pipeline":
-                    num_cvsram = mapper.num_stages
                 else:
                     assert False
                 mapper.set_cvsram_param(num_cvsram, [0x50000000 for _ in range(num_cvsram)],
                                         [key_params["CVSRAMSize"] for _ in range(num_cvsram)])
-            if eval("issubclass(" + mapper_pfx + "Remapper, PipelineRemapper)"):
-                mapper.set_pipeline_params(self.num_batches)
 
             exe_cmds = mapper.compute_remap_decision(self.remap_input, self.remap_output)
             dump_mapper_path = os.path.abspath(os.path.join(mapper.out_dir, trace_id + "_mapper"))
@@ -231,13 +220,6 @@ class Sweeper:
             rd_only_var_log = "rd_only_var_log" if mapper_pfx == "Identity" else trace_id + "_rd_only_var_log"
             run_cmd = "/home/" + self.scheduler + " " + os.path.join(new_sim_dir, trace_bin) + " " + \
                       os.path.join(self.sim_dir, rd_only_var_log)
-        elif "pipeline" in self.scheduler:
-            if mapper_pfx == "Pipeline" or mapper_pfx == "PipelineWeightPin" or mapper_pfx == "PipelineActPin":
-                run_cmd = "/home/" + self.scheduler + " " + \
-                          os.path.join(new_sim_dir, self.model_name + "_" + trace_id + "_") + \
-                          " " + str(self.num_batches) + " " + str(mapper.num_stages)
-            else:
-                assert False
         else:
             assert False
 
