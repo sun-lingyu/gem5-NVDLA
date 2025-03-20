@@ -31,46 +31,65 @@ class Data:
 
 
 class TensorSurface:
-    def __init__(self, tsd, tb, addr_id, offset, addr_base_map):
+    def __init__(self, tsd, tb):
         """ compilation-time info """
         self.tsd_name = tsd     # each Data has a unique tsd_name
         self.tb_name = tb       # but multiple Data objects may belong to the same tb
-        self.addr_id = addr_id
-        self.offset = offset
+        self.addr_ids = []
+        self.offsets = []
 
-        self.addr = None        # offset 0xc0000000 by default
+        self.addrs = []        # offset 0xc0000000 by default
         self.size = None        # will only be correct for input/output/weight tensor surfaces
+        self.num_batch = 0
+    
+    def appendBatch(self, addr_id, offset, addr_base_map):
+        self.addr_ids.append(addr_id)
+        self.offsets.append(offset)
+        self.num_batch += 1
 
-        if self.addr_id in addr_base_map:
-            self.addr = addr_base_map[self.addr_id] + self.offset
+        if addr_id in addr_base_map:
+            self.addrs.append(addr_base_map[addr_id] + offset)
 
 
 class TensorBuffer:
-    def __init__(self, tb, addr_id, size, addr_base_map):
+    def __init__(self, tb, size):
         self.tb_name = tb
-        self.addr_id = addr_id if addr_id in addr_base_map else None
+        self.addr_ids = [] # len(self.addr_ids) = num_batch
         # generally 1 are weights and 2 are activations (w/o inputs and outputs)
 
-        self.offset = None
+        self.offsets = [] # len(self.offsets) = num_batch
         self.size = size
         self.tsd_list = []
 
-        self.addr = None
+        self.addrs = [] # len(self.addrs) = num_batch
         self.liveness = None
         self.num_access = None
+        self.num_batch = 0
 
-    def add_tensor_surface(self, ts_name, ts, addr_base_map):
-        assert ts_name not in self.tsd_list
-        if ts.addr_id in addr_base_map:     # otherwise this TensorBuffer will be deleted. Don't care
-            if self.offset is None:
-                self.addr_id = ts.addr_id   # self.addr_id can be None during construction
-                self.offset = ts.offset
-                self.addr = addr_base_map[self.addr_id] + self.offset
-            elif ts.addr < self.addr:     # update to a new addr_id and offset
-                self.offset = ts.offset
-                self.addr_id = ts.addr_id
-                self.addr = ts.addr
+    def update_tensor_surface(self, ts_name, ts, addr_base_map):
+        if len(ts.addrs) == 0:
+            return
+        assert len(ts.addrs) == ts.num_batch
+
+        if ts_name not in self.tsd_list:
             self.tsd_list.append(ts_name)
+
+        for batch_id in range(ts.num_batch):
+            addr_id = ts.addr_ids[batch_id]
+            offset = ts.offsets[batch_id]
+            assert addr_id in addr_base_map
+            addr = ts.addrs[batch_id]
+
+            if batch_id == self.num_batch: # new batch
+                assert ts.num_batch == self.num_batch + 1 # all previous batches must be processed
+                self.addr_ids.append(addr_id)
+                self.offsets.append(offset)
+                self.addrs.append(addr)
+                self.num_batch += 1
+            elif addr < self.addrs[batch_id]:     # update to a new addr_id and offset
+                self.addr_ids[batch_id] = addr_id
+                self.offsets[batch_id] = offset
+                self.addrs[batch_id] = addr
 
 
 class Surface:
@@ -188,7 +207,7 @@ class Workload:
         """get self.rd_only_tbs"""
         rd_only_addr2tb_name = {}
         for w in self.w_tb:
-            to_query_addr = self.get_to_query_addr(self.tb[w])
+            to_query_addr = self.get_to_query_addr(self.tb[w], 0) # weight tb always has batch_id 0
             rd_only_addr2tb_name[to_query_addr] = w
 
         for rw_and_addr in self.raw_addr_log:
@@ -219,44 +238,45 @@ class Workload:
             to_get_tb = self.w_tb + self.in_tb + self.out_tb if self.dump_results else self.w_tb + self.in_tb
             for tb_name in to_get_tb:
                 tb = self.tb[tb_name]
-                file_name = "0x%08x" % tb.addr + ".dat"
-                if tb_name in self.out_tb:
-                    file_name = "golden_" + file_name
-                file_lines = []
-                bytes_in_this_line = 0
-                file_line = ""
-                aligned_start = (tb.addr // self.axi_width) * self.axi_width
-                aligned_end_ceil = ((tb.addr + tb.size - 1) // self.axi_width + 1) * self.axi_width
-                # true_start = data_blk.addr
-                # true_end = data_blk.addr + data_blk.size
-                for addr in range(aligned_start, aligned_end_ceil, self.axi_width):
-                    # each entry has length self.axi_width
-                    contents = memory[addr]
-                    this_txn_st = max(tb.addr, addr)
-                    this_txn_ed = min(addr + self.axi_width, tb.addr + tb.size)
-                    for byte_id in range(this_txn_st, this_txn_ed):
-                        int_id = (byte_id % self.axi_width) // 4
-                        offset = ((byte_id % self.axi_width) % 4) * 8
-                        byte = (contents[int_id] >> offset) & 0xff
-                        file_line += "0x%02x " % byte
-                        if bytes_in_this_line == 31:
-                            bytes_in_this_line = 0
-                            file_lines.append(file_line.strip() + "\n")
-                            file_line = ""
-                        else:
-                            bytes_in_this_line += 1
-                if bytes_in_this_line != 0:     # have some remaining
-                    file_lines.append(file_line.strip() + "\n")
+                for batch_id in range(tb.num_batch):
+                    file_name = "0x%08x" % tb.addrs[batch_id] + ".dat"
+                    if tb_name in self.out_tb:
+                        file_name = "golden_" + file_name
+                    file_lines = []
                     bytes_in_this_line = 0
                     file_line = ""
-                with open(os.path.join(self.in_dir, file_name), "w") as fp:
-                    fp.writelines(file_lines)
-                if tb_name in self.out_tb:
-                    to_append_txn_lines.append("dump_mem " + "0x%08x" % tb.addr + " " + hex(tb.size) +
-                                               " " + file_name + "\t#actual_len = " + hex(tb.size) + "\n")
-                else:
-                    to_prepend_txn_lines.append("load_mem " + "0x%08x" % tb.addr + " " + hex(tb.size) +
+                    aligned_start = (tb.addrs[batch_id] // self.axi_width) * self.axi_width
+                    aligned_end_ceil = ((tb.addrs[batch_id] + tb.size - 1) // self.axi_width + 1) * self.axi_width
+                    # true_start = data_blk.addr
+                    # true_end = data_blk.addr + data_blk.size
+                    for addr in range(aligned_start, aligned_end_ceil, self.axi_width):
+                        # each entry has length self.axi_width
+                        contents = memory[addr]
+                        this_txn_st = max(tb.addrs[batch_id], addr)
+                        this_txn_ed = min(addr + self.axi_width, tb.addrs[batch_id] + tb.size)
+                        for byte_id in range(this_txn_st, this_txn_ed):
+                            int_id = (byte_id % self.axi_width) // 4
+                            offset = ((byte_id % self.axi_width) % 4) * 8
+                            byte = (contents[int_id] >> offset) & 0xff
+                            file_line += "0x%02x " % byte
+                            if bytes_in_this_line == 31:
+                                bytes_in_this_line = 0
+                                file_lines.append(file_line.strip() + "\n")
+                                file_line = ""
+                            else:
+                                bytes_in_this_line += 1
+                    if bytes_in_this_line != 0:     # have some remaining
+                        file_lines.append(file_line.strip() + "\n")
+                        bytes_in_this_line = 0
+                        file_line = ""
+                    with open(os.path.join(self.in_dir, file_name), "w") as fp:
+                        fp.writelines(file_lines)
+                    if tb_name in self.out_tb:
+                        to_append_txn_lines.append("dump_mem " + "0x%08x" % tb.addrs[batch_id] + " " + hex(tb.size) +
                                                 " " + file_name + "\t#actual_len = " + hex(tb.size) + "\n")
+                    else:
+                        to_prepend_txn_lines.append("load_mem " + "0x%08x" % tb.addrs[batch_id] + " " + hex(tb.size) +
+                                                    " " + file_name + "\t#actual_len = " + hex(tb.size) + "\n")
             self.txn_lines = to_prepend_txn_lines + self.txn_lines + to_append_txn_lines
 
         if self.in_compilation:
@@ -267,21 +287,22 @@ class Workload:
             """do liveness analysis for each intermediate activation TensorBuffer object"""
             for tb_name in self.itm_act_tb + self.in_tb + self.out_tb:
                 tb = self.tb[tb_name]
-                first = self.get_to_query_addr(tb)
-                last = last_aligned(tb.addr, tb.size, self.axi_width)
+                first = self.get_to_query_addr(tb, 0) # use batch_id 0 to determine liveness
+                last = last_aligned(tb.addrs[0], tb.size, self.axi_width)
                 assert first in self.addr_log
                 assert last in self.addr_log
                 tb.liveness = (self.addr_log[first][0][0], self.addr_log[last][-1][0])
                 tb.num_access = len(self.addr_log[last])
 
-    def get_to_query_addr(self, ts_or_tb):      # it accepts either tensor surface or tensor buffer
-        if (ts_or_tb.addr // self.axi_width) * self.axi_width == ts_or_tb.addr:
-            to_query_addr = ts_or_tb.addr
+    def get_to_query_addr(self, ts_or_tb, batch_id):      # it accepts either tensor surface or tensor buffer
+        addr = ts_or_tb.addrs[batch_id]
+        if (addr // self.axi_width) * self.axi_width == addr:
+            to_query_addr = addr
         elif ts_or_tb.size > self.axi_width:
-            to_query_addr = ((ts_or_tb.addr // self.axi_width) + 1) * self.axi_width
+            to_query_addr = ((addr // self.axi_width) + 1) * self.axi_width
         else:
             print("critical unaligned data_blk")
-            to_query_addr = (ts_or_tb.addr // self.axi_width) * self.axi_width
+            to_query_addr = (addr // self.axi_width) * self.axi_width
         return to_query_addr
 
     # read compile_log
@@ -291,36 +312,40 @@ class Workload:
 
         for line_id, line in enumerate(lines):
             if "(Surface) Address list entry for" in line:
-                name_match = re.search(r"tsd=(tsd-\d+)/(tb-\d+):\d+ -> (\d+) offset=(\d+) size=(\d+)", line)
+                name_match = re.search(r"tsd=(tsd-\d+)/(tb-\d+):(\d+) -> (\d+) offset=(\d+) size=(\d+)", line)
                 tsd = name_match.group(1)
                 tb = name_match.group(2)
-                addr_id = int(name_match.group(3))
-                offset = int(name_match.group(4))
-                tb_size = int(name_match.group(5))  # this tb_size is not 100% correct, as observed in resnet50 inputs
+                nn = int(name_match.group(3))
+                addr_id = int(name_match.group(4))
+                offset = int(name_match.group(5))
+                tb_size = int(name_match.group(6))  # this tb_size is not 100% correct, as observed in resnet50 inputs
 
-                assert tsd not in self.ts
-                new_ts = TensorSurface(tsd, tb, addr_id, offset, addr_base_map)
-                self.ts[tsd] = new_ts
+                if tsd not in self.ts:
+                    new_ts = TensorSurface(tsd, tb)
+                    new_ts.appendBatch(addr_id, offset, addr_base_map)
+                    self.ts[tsd] = new_ts
+                else:
+                    assert nn == self.ts[tsd].num_batch
+                    self.ts[tsd].appendBatch(addr_id, offset, addr_base_map)
 
                 if tb not in self.tb:
-                    curr_tb = TensorBuffer(tb, addr_id, tb_size, addr_base_map)
-                    curr_tb.add_tensor_surface(tsd, new_ts, addr_base_map)
-                    self.tb[tb] = curr_tb
+                    new_tb = TensorBuffer(tb, tb_size)
+                    new_tb.update_tensor_surface(tsd, self.ts[tsd], addr_base_map)
+                    self.tb[tb] = new_tb
                 else:
-                    prev_tb = self.tb[tb]
-                    assert prev_tb.size == tb_size
-                    prev_tb.add_tensor_surface(tsd, new_ts, addr_base_map)
+                    assert tb_size == self.tb[tb].size
+                    self.tb[tb].update_tensor_surface(tsd, self.ts[tsd], addr_base_map)
 
         # remove redundant ts and tb
         to_pop = []
         for ts_name, ts in self.ts.items():
-            if ts.addr is None:
+            if len(ts.addrs) == 0:
                 to_pop.append(ts_name)
         for pop_item in to_pop:
             self.ts.pop(pop_item)
         to_pop = []
         for tb_name, tb in self.tb.items():
-            if tb.addr is None:
+            if len(tb.addrs) == 0:
                 to_pop.append(tb_name)
         for pop_item in to_pop:
             self.tb.pop(pop_item)
@@ -328,8 +353,11 @@ class Workload:
         """acquire size info of tsd (only for input/out/weight are correct)"""
         surfaces, data = construct_surfaces(qemu_log_lines)
         for ts_name, ts in self.ts.items():
-            desc = (ts.addr_id, ts.offset)
-            ts.size = data[desc].size
+            addr_id = ts.addr_ids[0] # use batch_id 0 to determine ts size
+            offset = ts.offsets[0]
+            desc = (addr_id, offset)
+            ts.size = data[desc].size # for input and output, ts.size is half of tb.size
+            # ts.size is not used for now
 
     def sclog2traces(self):
         txn_lines = []
@@ -419,9 +447,10 @@ class Workload:
     def get_various_tensor_buffers(self):
         assert len(self.in_tb) == 0 and len(self.out_tb) == 0
         for tb_name, tb in self.tb.items():
-            if tb.addr_id != 1:
+            addr_id = tb.addr_ids[0] # use batch id 0 to determine tb type
+            if addr_id != 1:
                 self.act_tb.append(tb_name)
-                to_query_addr = self.get_to_query_addr(tb)
+                to_query_addr = self.get_to_query_addr(tb, 0)
                 addr_entry = self.addr_log[to_query_addr]
                 if addr_entry[0][1] == "r":
                     self.in_tb.append(tb_name)
@@ -430,7 +459,7 @@ class Workload:
                 else:
                     self.itm_act_tb.append(tb_name)
             else:
-                self.w_tb.append(tb_name)
+                self.w_tb.append(tb_name) # weight tensor buffer
 
 
 # @output0: a list of surfaces, each is an object of Surface class

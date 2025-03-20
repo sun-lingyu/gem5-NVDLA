@@ -88,9 +88,10 @@ public:
         // get tensor information
         while (std::getline(fin, line)) {
             std::stringstream line_stream(line);
+            std::string tensor_name;
             uint64_t start, end, accesses;
             uint64_t size;
-            line_stream >> start >> end >> size >> accesses;
+            line_stream >> tensor_name >> start >> end >> size >> accesses;
             max_life_span = max_life_span > (end - start) ? max_life_span : (end - start);
 
             tensors.emplace_back(start, end, size, accesses);
