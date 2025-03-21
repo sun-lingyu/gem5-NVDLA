@@ -223,6 +223,15 @@ class SingleAccelCVSRAMRemapper(CVSRAMRemapper):
         os.system("perl " + script_path + " " + out_txn_path + " " +
                   os.path.join(self.out_dir, self.testcase_str + "_trace.bin"))
 
+        """ modify rd_only_var_log """
+        with open(rd_var_log_path, "wb") as fp:
+            for rd_only_var in self.workload.rd_only_tbs:
+                tb = self.workload.tb[rd_only_var]
+                assert tb.num_batch == 1
+                if tb.addrs[0] not in self.mapping.keys():
+                    fp.write(tb.addrs[0].to_bytes(4, byteorder="little", signed=False))
+                    fp.write(tb.size.to_bytes(4, byteorder="little", signed=False))
+
 class ActPinRemapper(SingleAccelCVSRAMRemapper):
     def __init__(self, in_dir, model_name):
         super(ActPinRemapper, self).__init__(in_dir, model_name)
@@ -280,7 +289,6 @@ class ActPinRemapper(SingleAccelCVSRAMRemapper):
                         assert to_map_addr == self.mapping[ts.addrs[batch_id]]
                     else:
                         self.mapping[ts.addrs[batch_id]] = to_map_addr
-        print(self.mapping)
 
 def write_solver_input(file_path, workload, log_weights, remap_input=[], remap_output=[]):
     tensors_remapped = workload.itm_act_tb[:]
