@@ -122,6 +122,9 @@ def createSystem(caches, kernel, accelerators, ddr_type, ddr_channels, bootscrip
                                    object_file=SysPaths.binary(kernel)),
                                readfile=bootscript)
 
+    sys.membus.width = ddr_channels * sys.membus.width
+    sys.iobus.width = ddr_channels * sys.iobus.width
+
     # sys.mem_ctrls = [ SimpleMemory(range=r, port=sys.membus.mem_side_ports) for r in sys.mem_ranges ]
     mem_ranges_backup = sys.mem_ranges[-4:] if cvsram_enable else []
     sys.mem_ranges = sys.mem_ranges[:-4] if cvsram_enable else sys.mem_ranges
